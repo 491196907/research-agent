@@ -360,3 +360,64 @@ def test_报告包含结论和来源(tmp_path, monkeypatch):
     assert "研究报告：测试主题" in text
     assert "这是结论" in text
     assert "x.md#1" in text
+
+
+# ==================== 使用记录 + 多人口令 ====================
+def test_使用记录_写入与读取(tmp_store):
+    """每跑一次研究就记一条 —— 公开部署后靠它看"谁在用、在研究什么"。"""
+    assert tmp_store.add_run("小明", "RAG 切片", 5, "完成", "研究报告-RAG切片-1.md") is True
+    assert tmp_store.add_run("小红", "学英语", 3, "完成", "") is True
+    rows = tmp_store.list_runs(10)
+    assert len(rows) == 2
+    assert rows[0][2] == "小红", "最新的记录要排在最前面"
+    # 一行 = (id, 时间, 访问者, 主题, 步数, 状态, 报告)
+    assert rows[1][2:7] == ("小明", "RAG 切片", 5, "完成", "研究报告-RAG切片-1.md")
+
+
+def test_使用记录_按人统计次数(tmp_store):
+    for _ in range(3):
+        tmp_store.add_run("小明", "主题A")
+    tmp_store.add_run("小红", "主题B")
+    assert tmp_store.runs_summary() == [("小明", 3), ("小红", 1)]
+
+
+def test_使用记录_访问者为空时记成访客(tmp_store):
+    tmp_store.add_run("", "没登录的主题")
+    assert tmp_store.list_runs(1)[0][2] == "访客"
+
+
+def test_使用记录_非法步数不会写崩(tmp_store):
+    """界面传进来的东西不可信，写法要稳（写失败也只是少一条记录）。"""
+    assert tmp_store.add_run("小明", "主题", "五步") is False
+    assert tmp_store.list_runs(10) == []
+
+
+def test_多人口令解析_口令对得上名字():
+    table = config._parse_passwords("yaoyi=我自己, abc123=小明 , def456")
+    assert table == {"yaoyi": "我自己", "abc123": "小明", "def456": "访客"}
+
+
+def test_多人口令解析_空值不报错():
+    assert config._parse_passwords(None) == {}
+    assert config._parse_passwords("") == {}
+
+
+def test_口令校验_多人模式返回对应名字(monkeypatch):
+    monkeypatch.setattr(config, "ACCESS_PASSWORDS", {"abc123": "小明"})
+    monkeypatch.setattr(config, "ACCESS_PASSWORD", None)
+    assert config.check_password("abc123") == "小明"
+    assert config.check_password("  abc123 ") == "小明", "前后空格要能容错"
+    assert config.check_password("猜的") is None
+
+
+def test_口令校验_单人模式返回访客(monkeypatch):
+    monkeypatch.setattr(config, "ACCESS_PASSWORDS", {})
+    monkeypatch.setattr(config, "ACCESS_PASSWORD", "yaoyi")
+    assert config.check_password("yaoyi") == "访客"
+    assert config.check_password("yaoyi2") is None
+
+
+def test_口令校验_没配口令就不设门(monkeypatch):
+    monkeypatch.setattr(config, "ACCESS_PASSWORDS", {})
+    monkeypatch.setattr(config, "ACCESS_PASSWORD", None)
+    assert config.check_password("随便") == "访客"

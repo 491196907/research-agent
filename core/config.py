@@ -49,6 +49,40 @@ SEARCH_API_KEY = _secret("TAVILY_API_KEY")
 
 
 ACCESS_PASSWORD = _secret("ACCESS_PASSWORD")
+
+
+def _parse_passwords(raw):
+    """把 "口令=名字, 口令2=名字2" 解析成 {口令: 名字}。
+
+    为什么要"每人一个口令"？
+      共享一个口令时，你只知道"有人来过"，不知道是谁；
+      每人发一个（口令不同、名字不同），使用记录里就能看到"小明研究了 X、小红研究了 Y"。
+    """
+    table = {}
+    for item in (raw or "").split(","):
+        item = item.strip()
+        if not item:
+            continue
+        if "=" in item:
+            pwd, name = item.split("=", 1)
+            table[pwd.strip()] = name.strip() or "访客"
+        else:
+            table[item] = "访客"
+    return table
+
+
+# Secrets 里可以这样配多人口令（名字随便起）：
+#   ACCESS_PASSWORDS = "yaoyi=我自己, abc123=小明, def456=小红"
+ACCESS_PASSWORDS = _parse_passwords(_secret("ACCESS_PASSWORDS"))
+
+
+def check_password(entered):
+    """校验口令：对就返回"访问者名字"，不对返回 None。"""
+    if ACCESS_PASSWORDS:
+        return ACCESS_PASSWORDS.get((entered or "").strip())
+    if ACCESS_PASSWORD:
+        return "访客" if entered == ACCESS_PASSWORD else None
+    return "访客"          # 没配任何口令 = 不设门，谁都能进
 SEARCH_API_URL = "https://api.tavily.com/search"
 
 

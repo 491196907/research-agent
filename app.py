@@ -7,8 +7,11 @@ r"""app.py —— 网页界面（Streamlit）。
 浏览器会自动打开；想停止就在终端按 Ctrl+C。
 """
 
+import csv
 import glob
+import io
 import os
+from datetime import datetime
 
 import streamlit as st
 
@@ -16,12 +19,24 @@ from core import agent, config, retriever, store, tools
 
 st.set_page_config(page_title="AI 研究助手", page_icon="🔎", layout="wide")
 
+# ============================================================
+# 访问口令（可选）：支持"每人一个口令"，见 core/config.py 的 check_password
+# 配了以后，使用记录里能看出"谁研究了什么"
+# ============================================================
+if "visitor" not in st.session_state:
+    st.session_state["visitor"] = None
 
-if config.ACCESS_PASSWORD:
-    entered = st.text_input("🔒 请输入访问口令", type="password")
-    if entered != config.ACCESS_PASSWORD:
+if config.ACCESS_PASSWORD or config.ACCESS_PASSWORDS:
+    if not st.session_state["visitor"]:
+        entered = st.text_input("🔒 请输入访问口令", type="password")
+        name = config.check_password(entered) if entered else None
+        if name:
+            st.session_state["visitor"] = name
+            st.rerun()
         st.info("这是一个私人部署的 AI 研究助手。需要访问口令，请找分享给你的人要。")
         st.stop()
+
+visitor = st.session_state["visitor"] or "访客"
 
 
 with st.sidebar:
@@ -49,6 +64,10 @@ with st.sidebar:
     st.metric("条数", store.count_notes())
     st.caption("存进 outputs/research.db，重启不丢")
 
+    st.divider()
+    st.caption(f"当前访问者：**{visitor}**")
+    st.metric("研究次数", len(store.list_runs(1000)))
+
 
     st.divider()
     with st.expander("🔧 自检（配置对不对）"):
@@ -63,7 +82,9 @@ with st.sidebar:
 st.markdown("#### 给它一个主题，它自己查资料、做笔记、写报告。")
 st.caption("Agent 会先规划子问题，优先查本地资料库；资料库里没有就联网搜索、抓网页，最后生成带来源的报告。")
 
-tab_run, tab_reports, tab_notes = st.tabs(["🔬 开始研究", "📄 历史报告", "🗂 已存要点"])
+tab_run, tab_reports, tab_notes, tab_usage = st.tabs(
+    ["🔬 开始研究", "📄 历史报告", "🗂 已存要点", "📊 使用记录"]
+)
 
 with tab_run:
     if not config.API_KEY:
@@ -96,12 +117,18 @@ with tab_run:
         st.markdown(answer or "（没有拿到结论）")
 
         reports = sorted(glob.glob(os.path.join(config.OUTPUT_DIR, "研究报告-*.md")), reverse=True)
+        latest_name = ""
         if reports:
             latest = reports[0]
+            latest_name = os.path.basename(latest)
             with open(latest, encoding="utf-8") as f:
                 content = f.read()
             st.download_button("⬇️ 下载这份报告", content,
-                               file_name=os.path.basename(latest), mime="text/markdown")
+                               file_name=latest_name, mime="text/markdown")
+
+        # 记一条使用记录（写失败也不影响本次研究）
+        status = "提前停止" if str(answer).startswith("⚠") else "完成"
+        store.add_run(visitor, topic.strip(), len(trace), status, latest_name)
 
 with tab_reports:
     reports = sorted(glob.glob(os.path.join(config.OUTPUT_DIR, "研究报告-*.md")), reverse=True)
@@ -122,4 +149,37 @@ with tab_notes:
         st.dataframe(
             [{"id": r[0], "要点": r[1], "来源": r[2], "时间": r[3]} for r in rows],
             use_container_width=True,
+        )
+
+with tab_usage:
+    st.caption("这里记录每一次研究：谁、什么时候、什么主题、走了几步、成没成。"
+               "云端重启后数据库会重置，想要长期保存请点下面的按钮导出 CSV。")
+    runs = store.list_runs(500)
+    if not runs:
+        st.info("还没有使用记录 —— 跑一次研究就会出现")
+    else:
+        col1, col2 = st.columns(2)
+        col1.metric("总研究次数", len(runs))
+        col2.metric("参与人数", len(store.runs_summary()))
+
+        st.write("**按访问者统计**")
+        st.dataframe([{"访问者": v, "次数": n} for v, n in store.runs_summary()],
+                     use_container_width=True)
+
+        st.write("**明细（最新在前）**")
+        detail = [{"时间": r[1], "访问者": r[2], "主题": r[3],
+                   "步数": r[4], "状态": r[5], "报告": r[6]} for r in runs]
+        st.dataframe(detail, use_container_width=True)
+
+        # 导出 CSV：用 utf-8-sig，Excel 打开中文才不乱码
+        buf = io.StringIO()
+        writer = csv.writer(buf)
+        writer.writerow(["时间", "访问者", "主题", "步数", "状态", "报告"])
+        for row in runs:
+            writer.writerow([row[1], row[2], row[3], row[4], row[5], row[6]])
+        st.download_button(
+            "⬇️ 下载 CSV（可用 Excel 打开）",
+            buf.getvalue().encode("utf-8-sig"),
+            file_name=f"使用记录-{datetime.now():%Y%m%d-%H%M}.csv",
+            mime="text/csv",
         )
