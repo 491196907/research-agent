@@ -1,0 +1,23 @@
+# Python
+__pycache__/
+*.py[cod]
+.pytest_cache/
+
+# 运行时产物（部署后是临时的，不需要提交）
+outputs/*.db
+outputs/logs/
+*.log
+
+# 抓取下来的网页（第三方内容 + 每人跑都会生成，不进仓库）
+资料库/网页-*.md
+
+# 密钥（绝不提交）
+.env
+.env.*
+.streamlit/secrets.toml
+
+# 编辑器/系统
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db

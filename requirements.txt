@@ -1,0 +1,4 @@
+requests>=2.31
+numpy>=1.26
+streamlit>=1.30
+pytest>=8.0
