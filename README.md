@@ -1,8 +1,11 @@
 # AI 研究助手（自主 Agent）
 
+[![tests](https://github.com/491196907/research-agent/actions/workflows/tests.yml/badge.svg)](https://github.com/491196907/research-agent/actions/workflows/tests.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+
 > **给一个研究主题，AI 自己规划、找资料（本地 + 联网）、记笔记，最后写出一份带来源的研究报告。**
 
-**Python 3.10+** · **Streamlit** · **DeepSeek API** · **向量检索（embedding）** · **SQLite** · **MIT License**
+**Python 3.10+** · **Streamlit** · **DeepSeek API** · **向量检索（embedding）** · **SQLite** · **33 个单元测试（每次 push 自动跑）**
 
 ### 🔗 在线体验（需要口令）
 
