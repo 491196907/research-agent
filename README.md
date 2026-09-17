@@ -11,7 +11,7 @@
 
 **https://research-agent-yaoyi.streamlit.app/**
 
-> 这是私人部署（防止 API key 被陌生人刷），打开后要先输访问口令。
+
 >
 > - **想要口令**：在 [Issues](../../issues/new) 里留一条，或直接联系我 —— 我把口令发你，就能直接用
 > - **想自己部署**：fork 本仓库，按「二、怎么用」配自己的 key（DeepSeek / 硅基流动 / Tavily 都有免费额度）
