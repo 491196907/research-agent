@@ -11,7 +11,6 @@ import csv
 import glob
 import io
 import os
-from datetime import datetime
 
 import streamlit as st
 
@@ -140,22 +139,23 @@ with tab_run:
                         st.text(str(info["result"])[:1500])
 
         with st.spinner(f"Agent 正在研究（最多 {max_steps} 步）…"):
-            answer, trace = agent.run(topic.strip(), max_steps=max_steps,
+            answer, trace, report_path = agent.run(topic.strip(), max_steps=max_steps,
                                       plan_first=use_plan, on_step=on_step)
 
         st.success(f"完成！共调用工具 {len(trace)} 次")
         st.markdown("### 结论")
         st.markdown(answer or "（没有拿到结论）")
 
-        reports = sorted(glob.glob(os.path.join(config.OUTPUT_DIR, "研究报告-*.md")), reverse=True)
+        # 用 agent 交回来的**这一份**报告路径。
+        # 以前是"取 outputs 里最新的那个文件"，多个人同时用就会张冠李戴（主题和报告对不上）。
         latest_name = ""
-        if reports:
-            latest = reports[0]
-            latest_name = os.path.basename(latest)
-            with open(latest, encoding="utf-8") as f:
-                content = f.read()
-            st.download_button("⬇️ 下载这份报告", content,
-                               file_name=latest_name, mime="text/markdown")
+        if report_path and os.path.exists(report_path):
+            latest_name = os.path.basename(report_path)
+            with open(report_path, encoding="utf-8") as f:
+                st.download_button("⬇️ 下载这份报告", f.read(),
+                                   file_name=latest_name, mime="text/markdown")
+        else:
+            st.caption("（这次的报告没能落盘，结论看上面就行）")
 
         # 记一条使用记录（写失败也不影响本次研究）
         status = "提前停止" if str(answer).startswith("⚠") else "完成"
@@ -183,7 +183,7 @@ with tab_notes:
         )
 
 with tab_usage:
-    st.caption("这里记录每一次研究：谁、什么时候、什么主题、走了几步、成没成。"
+    st.caption("这里记录每一次研究：谁、什么时候（北京时间）、什么主题、走了几步、成没成。"
                "云端重启后数据库会重置，想要长期保存请点下面的按钮导出 CSV。")
     runs = store.list_runs(500)
     if not runs:
@@ -211,6 +211,6 @@ with tab_usage:
         st.download_button(
             "⬇️ 下载 CSV（可用 Excel 打开）",
             buf.getvalue().encode("utf-8-sig"),
-            file_name=f"使用记录-{datetime.now():%Y%m%d-%H%M}.csv",
+            file_name=f"使用记录-{config.now_str('%Y%m%d-%H%M')}.csv",
             mime="text/csv",
         )

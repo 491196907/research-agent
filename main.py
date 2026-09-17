@@ -1,7 +1,7 @@
 r"""main.py —— 项目入口：给一个研究主题，Agent 自己跑完并生成报告。
 
 用法：
-    cd E:\Deepseek工作区\ai学习\git仓库\项目\research-agent
+    项目根目录（有 main.py 的那一层）
     py main.py
 """
 
@@ -26,13 +26,13 @@ def main():
     print(f"\n开始研究：{topic}")
     print("Agent 会自己决定查什么、记什么，请稍等……\n")
 
-    answer, trace = agent.run(topic, max_steps=config.MAX_STEPS)
+    answer, trace, report_path = agent.run(topic, max_steps=config.MAX_STEPS)
 
     print("\n" + "=" * 56)
     print("  最终结论")
     print("=" * 56)
     print(answer)
-    print(f"\n[本次共调用工具 {len(trace)} 次；完整报告已存到 outputs/ 目录]")
+    print(f"\n[本次共调用工具 {len(trace)} 次；报告：{report_path or '（没落盘）'}]")
 
 
 if __name__ == "__main__":

@@ -1,5 +1,6 @@
 
 import os
+from datetime import datetime, timedelta, timezone
 
 
 def _secret(name, default=None):
@@ -24,12 +25,28 @@ def _secret(name, default=None):
 # 代码版本号：界面上会显示它。
 # 为什么需要这个？云端（Streamlit Cloud）偶尔会出现"app.py 已经更新、core/config.py 还是旧的"
 # 半新半旧状态 —— 有了版本号，界面上就能一眼看出"云端还在跑旧代码，该 Reboot 了"。
-APP_VERSION = "1.1"
+APP_VERSION = "1.2"
 
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 DATA_DIR = os.path.join(BASE_DIR, "资料库")     # 本地资料放这里
 OUTPUT_DIR = os.path.join(BASE_DIR, "outputs")  # 生成的报告放这里
+
+
+# ============ 时间（报告文件名、使用记录都用它）============
+# 云端容器里的"本地时间"其实是 UTC：直接用 datetime.now() 会比你手机上的时间慢 8 小时。
+# 所以统一用「UTC + 固定偏移」来算时间 —— 在哪里跑，显示的都是同一个时刻。
+TZ_OFFSET_HOURS = 8      # 北京 = UTC+8；换时区只改这一行
+
+
+def now():
+    """当前时间（按 TZ_OFFSET_HOURS 偏移，带时区信息）。"""
+    return datetime.now(timezone.utc).astimezone(timezone(timedelta(hours=TZ_OFFSET_HOURS)))
+
+
+def now_str(fmt="%Y-%m-%d %H:%M:%S"):
+    """当前时间的字符串形式，例如 2026-09-17 16:05:03。"""
+    return now().strftime(fmt)
 
 
 API_KEY = _secret("DEEPSEEK_API_KEY")

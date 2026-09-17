@@ -255,7 +255,7 @@ def test_循环_模型直接回答就结束(monkeypatch):
     monkeypatch.setattr(agent.report, "save_report", lambda *a, **k: None)
     fakes = [{"role": "assistant", "content": "直接给结论"}]
     monkeypatch.setattr(llm, "chat_with_tools", lambda m, t: fakes.pop(0))
-    answer, trace = agent.run("测试", max_steps=3, verbose=False)
+    answer, trace, _ = agent.run("测试", max_steps=3, verbose=False)
     assert answer == "直接给结论"
     assert trace == []
 
@@ -268,7 +268,7 @@ def test_循环_会执行工具并回灌(monkeypatch, 临时资料库):
         {"role": "assistant", "content": "看过资料了"},
     ]
     monkeypatch.setattr(llm, "chat_with_tools", lambda m, t: fakes.pop(0))
-    answer, trace = agent.run("测试", max_steps=3, verbose=False)
+    answer, trace, _ = agent.run("测试", max_steps=3, verbose=False)
     assert answer == "看过资料了"
     assert len(trace) == 1
     assert trace[0]["tool"] == "list_sources"
@@ -283,7 +283,7 @@ def test_循环_连续查不到会强制收尾并给出结论(monkeypatch, 临�
     fakes.append({"role": "assistant",
                   "content": "资料覆盖不足：资料库里没有相关内容，建议补充资料或给出网址。"})
     monkeypatch.setattr(llm, "chat_with_tools", lambda m, t: fakes.pop(0))
-    answer, trace = agent.run("不存在的主题", max_steps=20, verbose=False)
+    answer, trace, _ = agent.run("不存在的主题", max_steps=20, verbose=False)
     assert "资料覆盖不足" in answer, "应该把模型收尾的结论原样交给用户"
     assert len(trace) == agent.STALL_LIMIT
 
@@ -330,7 +330,7 @@ def test_循环_步数用完时强制停止(monkeypatch):
     monkeypatch.setattr(agent.report, "save_report", lambda *a, **k: None)
     fakes = [_fake_tool_call("list_sources", "{}", f"c{i}") for i in range(20)]
     monkeypatch.setattr(llm, "chat_with_tools", lambda m, t: fakes.pop(0))
-    answer, trace = agent.run("测试", max_steps=2, verbose=False)
+    answer, trace, _ = agent.run("测试", max_steps=2, verbose=False)
     assert "最大步数" in answer
     assert len(trace) == 2
 
@@ -421,3 +421,44 @@ def test_口令校验_没配口令就不设门(monkeypatch):
     monkeypatch.setattr(config, "ACCESS_PASSWORDS", {})
     monkeypatch.setattr(config, "ACCESS_PASSWORD", None)
     assert config.check_password("随便") == "访客"
+
+
+# ==================== 时间与报告路径 ====================
+def test_时间_用的是北京时间而不是UTC():
+    """云端容器的"本地时间"其实是 UTC —— 时间必须自己带偏移，否则比你的表慢 8 小时。"""
+    from datetime import timedelta
+    assert config.now().utcoffset() == timedelta(hours=config.TZ_OFFSET_HOURS)
+    assert config.now_str()[:4] == str(config.now().year)
+
+
+def test_使用记录_时间按北京时间写入(tmp_store):
+    tmp_store.add_run("小明", "主题")
+    created = tmp_store.list_runs(1)[0][1]
+    assert created.startswith(config.now_str("%Y-%m-%d")), created
+
+
+def test_报告文件名和生成时间用北京时间(tmp_path, monkeypatch):
+    monkeypatch.setattr(config, "OUTPUT_DIR", str(tmp_path))
+    path = report.save_report("时间测试", "结论", [])
+    assert os.path.basename(path).startswith("研究报告-时间测试-")
+    assert config.now_str("%Y-%m-%d") in open(path, encoding="utf-8").read()
+
+
+def test_报告路径会交给调用方(monkeypatch):
+    """界面靠这个路径下载"这一份"报告 —— 以前是取最新文件，会张冠李戴。"""
+    monkeypatch.setattr(agent.report, "save_report", lambda *a, **k: "outputs/研究报告-甲的题目.md")
+    monkeypatch.setattr(llm, "chat_with_tools",
+                        lambda m, t: {"role": "assistant", "content": "结论"})
+    answer, trace, report_path = agent.run("甲的题目", max_steps=2, verbose=False, plan_first=False)
+    assert answer == "结论"
+    assert report_path == "outputs/研究报告-甲的题目.md"
+
+
+def test_done事件里带报告路径(monkeypatch):
+    monkeypatch.setattr(agent.report, "save_report", lambda *a, **k: "报告.md")
+    monkeypatch.setattr(llm, "chat_with_tools",
+                        lambda m, t: {"role": "assistant", "content": "结论"})
+    events = []
+    agent.run("测试", max_steps=2, verbose=False, plan_first=False, on_step=events.append)
+    assert events[-1]["report"] == "报告.md"
+

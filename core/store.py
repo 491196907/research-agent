@@ -50,7 +50,10 @@ def add_note(content, source):
     try:
         conn = get_conn()
 
-        conn.execute("INSERT INTO notes (content, source) VALUES (?, ?)", (content, source))
+        conn.execute(
+            "INSERT INTO notes (content, source, created_at) VALUES (?, ?, ?)",
+            (content, source, config.now_str()),        # 自己写时间：SQLite 默认给的是 UTC
+        )
         conn.commit()                     # 不 commit 等于没写进去
         conn.close()
     except sqlite3.Error as e:
@@ -87,8 +90,9 @@ def add_run(visitor, topic, steps=0, status="", report=""):
     try:
         conn = get_conn()
         conn.execute(
-            "INSERT INTO runs (visitor, topic, steps, status, report) VALUES (?, ?, ?, ?, ?)",
-            (visitor or "访客", topic, int(steps or 0), status, report or ""),
+            "INSERT INTO runs (created_at, visitor, topic, steps, status, report) "
+            "VALUES (?, ?, ?, ?, ?, ?)",
+            (config.now_str(), visitor or "访客", topic, int(steps or 0), status, report or ""),
         )
         conn.commit()
         conn.close()

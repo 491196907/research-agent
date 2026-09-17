@@ -1,6 +1,5 @@
 import os
 import re
-from datetime import datetime
 
 from core import config
 from core.log_setup import get_logger
@@ -33,7 +32,7 @@ def save_report(topic, answer, trace, plan=None):
     """写一份报告到 outputs/，返回文件路径（写失败返回 None，不影响主流程）。"""
     try:
         os.makedirs(config.OUTPUT_DIR, exist_ok=True)
-        stamp = datetime.now().strftime("%Y%m%d-%H%M%S")
+        stamp = config.now_str("%Y%m%d-%H%M%S")
         safe_topic = re.sub(r"[^\w\u4e00-\u9fa5-]+", "_", topic)[:30] or "未命名"
         path = os.path.join(config.OUTPUT_DIR, f"研究报告-{safe_topic}-{stamp}.md")
 
@@ -42,7 +41,7 @@ def save_report(topic, answer, trace, plan=None):
         lines = [
             f"# 研究报告：{topic}",
             "",
-            f"- 生成时间：{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}",
+            f"- 生成时间：{config.now_str()}",
             f"- 工具调用：{len(trace)} 次"
             + ("（" + "、".join(f"{k} × {v}" for k, v in counts.items()) + "）" if counts else ""),
             f"- 引用来源：{len(sources)} 处",

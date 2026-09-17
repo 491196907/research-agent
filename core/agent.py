@@ -59,9 +59,9 @@ def run(topic, max_steps=None, verbose=True, plan_first=True, on_step=None):
     回调收到的字典长这样：
         {"type": "plan", "plan": [...]}
         {"type": "tool", "step": 2, "tool": "search_notes", "args": {...}, "result": "…"}
-        {"type": "done", "answer": "…"}
+        {"type": "done", "answer": "…", "report": "outputs/研究报告-….md"}
     """
-    """跑一次研究任务，返回 (最终回答, 步骤记录 trace)。"""
+    """跑一次研究任务，返回 (最终回答, 步骤记录 trace, 报告文件路径)。"""
     max_steps = max_steps or config.MAX_STEPS
     messages = [
         {"role": "system", "content": SYSTEM_PROMPT},
@@ -96,10 +96,10 @@ def run(topic, max_steps=None, verbose=True, plan_first=True, on_step=None):
             if verbose:
                 log.info("[第 %s 步] 模型不再调用工具 → 结束循环", step)
             answer = message.get("content")
-            report.save_report(topic, answer, trace, plan=plan)   # 完成后自动落盘
+            report_path = report.save_report(topic, answer, trace, plan=plan)   # 完成后自动落盘
             if on_step:
-                on_step({"type": "done", "answer": answer})
-            return answer, trace
+                on_step({"type": "done", "answer": answer, "report": report_path})
+            return answer, trace, report_path
 
 
         messages.append(message)
@@ -146,16 +146,16 @@ def run(topic, max_steps=None, verbose=True, plan_first=True, on_step=None):
             messages.append({"role": "user", "content": FINAL_ASK})
             final = llm.chat_with_tools(messages, tool_schema.TOOL_SCHEMAS)
             answer = final.get("content") or "⚠ 资料覆盖不足，暂时给不出结论"
-            report.save_report(topic, answer, trace, plan=plan)
+            report_path = report.save_report(topic, answer, trace, plan=plan)
             if on_step:
-                on_step({"type": "done", "answer": answer})
-            return answer, trace
+                on_step({"type": "done", "answer": answer, "report": report_path})
+            return answer, trace, report_path
 
 
     log.warning("到达最大步数 %s，模型还在点菜 —— 强制停止", max_steps)
     answer = f"⚠ 到达最大步数（{max_steps}），任务未完成"
-    report.save_report(topic, answer, trace, plan=plan)              # 半成品也存下来，方便排查
-    return answer, trace
+    report_path = report.save_report(topic, answer, trace, plan=plan)   # 半成品也存下来，方便排查
+    return answer, trace, report_path
 
 
 if __name__ == "__main__":
