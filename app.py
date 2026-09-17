@@ -23,16 +23,46 @@ st.set_page_config(page_title="AI 研究助手", page_icon="🔎", layout="wide"
 # 访问口令（可选）：支持"每人一个口令"，见 core/config.py 的 check_password
 # 配了以后，使用记录里能看出"谁研究了什么"
 # ============================================================
+# 云端（Streamlit Cloud）偶尔会"只更新一半"：新的 app.py 已经跑起来了，
+# 但进程里缓存的 core/config.py 还是旧的 —— 这时直接调 config.check_password
+# 就会甩给用户一个 AttributeError 红屏。所以先探一下，再决定怎么校验。
+CONFIG_VERSION = getattr(config, "APP_VERSION", None)      # 新 config 才有
+HAS_CHECK_PASSWORD = callable(getattr(config, "check_password", None))
+STALE_CODE = not (CONFIG_VERSION and HAS_CHECK_PASSWORD)
+
+
+def _check_password(entered):
+    """校验口令：对就返回"访问者名字"，不对返回 None。
+
+    优先用 core/config.py 里的实现（支持"每人一个口令"）；
+    万一读到的是旧 config（没有这个函数），就退回旧的单个口令逻辑 —— 不把用户锁在门外。
+    """
+    if HAS_CHECK_PASSWORD:
+        return config.check_password(entered)
+    table = getattr(config, "ACCESS_PASSWORDS", None) or {}
+    if table:
+        return table.get((entered or "").strip())
+    old = getattr(config, "ACCESS_PASSWORD", None)
+    if old:
+        return "访客" if entered == old else None
+    return "访客"          # 没配任何口令 = 不设门
+
+
+GATE_ON = bool(getattr(config, "ACCESS_PASSWORD", None) or getattr(config, "ACCESS_PASSWORDS", None))
+
 if "visitor" not in st.session_state:
     st.session_state["visitor"] = None
 
-if config.ACCESS_PASSWORD or config.ACCESS_PASSWORDS:
+if GATE_ON:
     if not st.session_state["visitor"]:
         entered = st.text_input("🔒 请输入访问口令", type="password")
-        name = config.check_password(entered) if entered else None
+        name = _check_password(entered) if entered else None
         if name:
             st.session_state["visitor"] = name
             st.rerun()
+        if STALE_CODE:
+            st.warning("⚠️ 云端正在跑**半新半旧**的代码（新的 app.py + 旧的 core/config.py）。"
+                       "点右下角 **Manage app → Reboot** 重启一次就正常了。")
         st.info("这是一个私人部署的 AI 研究助手。需要访问口令，请找分享给你的人要。")
         st.stop()
 
@@ -67,6 +97,7 @@ with st.sidebar:
     st.divider()
     st.caption(f"当前访问者：**{visitor}**")
     st.metric("研究次数", len(store.list_runs(1000)))
+    st.caption(f"代码版本：{CONFIG_VERSION or '旧版（云端缓存没刷新，Reboot 一下）'}")
 
 
     st.divider()
@@ -148,7 +179,7 @@ with tab_notes:
     else:
         st.dataframe(
             [{"id": r[0], "要点": r[1], "来源": r[2], "时间": r[3]} for r in rows],
-            use_container_width=True,
+            width="stretch",
         )
 
 with tab_usage:
@@ -164,12 +195,12 @@ with tab_usage:
 
         st.write("**按访问者统计**")
         st.dataframe([{"访问者": v, "次数": n} for v, n in store.runs_summary()],
-                     use_container_width=True)
+                     width="stretch")
 
         st.write("**明细（最新在前）**")
         detail = [{"时间": r[1], "访问者": r[2], "主题": r[3],
                    "步数": r[4], "状态": r[5], "报告": r[6]} for r in runs]
-        st.dataframe(detail, use_container_width=True)
+        st.dataframe(detail, width="stretch")
 
         # 导出 CSV：用 utf-8-sig，Excel 打开中文才不乱码
         buf = io.StringIO()

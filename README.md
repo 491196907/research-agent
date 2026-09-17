@@ -248,6 +248,7 @@ research-agent/
 | 抓网页/搜索总是失败 | 公司网络拦截外部网站是常见情况 —— 不是 bug，Agent 会自动回去用本地资料；想联网可以用手机热点 |
 | 想研究资料库里没有的主题 | 直接问就行（例如"怎么学英语"），Agent 会 `web_search` → `fetch_web` → 总结；但**联网结果不保证权威**，重要结论请自己核对 |
 | `streamlit` 找不到 | `py -m pip install streamlit`（你的环境里已经装过） |
+| **云端报 `AttributeError` / 输口令进不去** | Streamlit Cloud 偶尔会"只更新一半"：新的 `app.py` 跑起来了、进程里缓存的 `core/config.py` 还是旧的。点右下角 **Manage app → Reboot** 重启一次即可（界面上会显示"代码版本"，显示"旧版"就是这个情况）。新版 `app.py` 已加了兜底：读不到新配置也不会红屏 |
 
 ---
 

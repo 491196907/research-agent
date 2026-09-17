@@ -21,6 +21,11 @@ def _secret(name, default=None):
 
 
 
+# 代码版本号：界面上会显示它。
+# 为什么需要这个？云端（Streamlit Cloud）偶尔会出现"app.py 已经更新、core/config.py 还是旧的"
+# 半新半旧状态 —— 有了版本号，界面上就能一眼看出"云端还在跑旧代码，该 Reboot 了"。
+APP_VERSION = "1.1"
+
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 DATA_DIR = os.path.join(BASE_DIR, "资料库")     # 本地资料放这里
